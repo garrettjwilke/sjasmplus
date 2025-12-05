@@ -519,7 +519,22 @@ static bool ReplaceDefineInternal(char* lp, char* const nl) {
 			// defines/macro arguments can substitute in the middle of ID only if they don't start with underscore
 			const bool canSubstituteInside = '_' != nid[0] || nextSubIdLp == wholeIdLp;
 			if (macrolabp && canSubstituteInside && (ver = MacroDefineTable.getverv(nid))) {
-				dr = 2;			// macro argument substitution is possible
+				// Check for recursive substitution: if we're at end of identifier and NOT at the beginning,
+				// verify the substitution value doesn't end with the parameter name (which would cause infinite recursion)
+				bool allowSubstitution = true;
+				if (!islabchar(*lp) && nextSubIdLp != wholeIdLp) {
+					// We're at the end of identifier and not at the start - check for recursive pattern
+					const size_t nidLen = strlen(nid);
+					const size_t verLen = strlen(ver);
+					if (verLen >= nidLen) {
+						// Check if substitution value ends with the parameter name
+						if (0 == strcmp(nid, ver + verLen - nidLen)) {
+							allowSubstitution = false;  // Would cause recursive substitution
+						}
+					}
+				}
+				if (allowSubstitution) dr = 2;		// macro argument substitution is possible
+				else { dr = 0; ver = nid; }			// skip substitution to avoid recursion
 			} else if (!isDefDir && canSubstituteInside && (ver = DefineTable.Get(nid))) {
 				dr = 1;			// DEFINE substitution is possible
 				//handle DEFARRAY case
